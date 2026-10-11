@@ -8,7 +8,7 @@
 - Express API and web server in `server/`
 - PostgreSQL for test papers, questions, practice completions, test attempts, answers, and best scores
 - Firebase Authentication for Google-only login
-- Docker Compose for a one-command server deployment
+- Docker Compose for a one-command application deployment using managed PostgreSQL
 
 Firebase stays on the no-cost Spark plan because the application no longer uses Firebase Cloud Functions or Firestore.
 
@@ -22,7 +22,7 @@ server/migrations/         PostgreSQL schema migrations
 server/data.js             Starter N5 sets and questions
 server/seed.js             Idempotent starter-data import
 Dockerfile                 Production Node container
-docker-compose.yml         Node application plus PostgreSQL
+docker-compose.yml         Node application connected to external PostgreSQL
 .env.example               Required environment variables
 firebase.json              Google-only Firebase Auth configuration
 ```
@@ -42,7 +42,7 @@ Answers remain server-side. Mock-test responses never include English translatio
 
 ## Production deployment with Docker
 
-Requirements: Docker Engine, Docker Compose, HTTPS configured for `jlptquiz.in`, and the existing Firebase project.
+Requirements: Docker Engine, Docker Compose, HTTPS configured for `jlptquiz.in`, an external PostgreSQL database, and the existing Firebase project.
 
 1. Clone the repository and enter it.
 2. Create the runtime environment file:
@@ -51,13 +51,13 @@ Requirements: Docker Engine, Docker Compose, HTTPS configured for `jlptquiz.in`,
    cp .env.example .env
    ```
 
-3. In `.env`, set a long random `POSTGRES_PASSWORD`. `PUBLIC_BASE_URL` defaults to `https://jlptquiz.in`.
+3. In `.env`, set `DATABASE_URL` to the connection string supplied by your managed PostgreSQL provider. Keep `DATABASE_SSL=true` unless the provider explicitly says otherwise. `PUBLIC_BASE_URL` defaults to `https://jlptquiz.in`.
 4. Provide Firebase Admin credentials using one of these approaches:
 
    - On Google Cloud, attach a service account and leave `FIREBASE_SERVICE_ACCOUNT_BASE64` empty so Application Default Credentials are used.
    - Elsewhere, base64-encode a Firebase service-account JSON file and place the one-line value in `FIREBASE_SERVICE_ACCOUNT_BASE64`. Never commit the key or `.env` file.
 
-5. Start the database and application:
+5. Ensure the database provider allows connections from the server, then start the application:
 
    ```bash
    docker compose up -d --build
@@ -67,7 +67,7 @@ Requirements: Docker Engine, Docker Compose, HTTPS configured for `jlptquiz.in`,
 7. The checked-in Firebase Authentication configuration authorizes `jlptquiz.in` and `www.jlptquiz.in`. If you use another hostname, add it without `https://` or a port under Authentication → Settings → Authorized domains.
 8. Put Nginx, Caddy, Traefik, or your hosting provider’s HTTPS proxy in front of port 3000.
 
-The container automatically applies versioned SQL migrations and idempotently seeds three starter N5 papers at startup. Set `AUTO_MIGRATE=false` if your deployment pipeline runs migrations separately.
+The container automatically applies versioned SQL migrations and idempotently seeds three starter N5 papers in the external database at startup. The database user must be allowed to create tables and indexes and to read and write application data. Set `AUTO_MIGRATE=false` if your deployment pipeline runs migrations separately.
 
 ## Development without Docker
 

@@ -1,44 +1,19 @@
 services:
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-jlptquiz}
-      POSTGRES_USER: ${POSTGRES_USER:-jlptquiz}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jlptquiz} -d ${POSTGRES_DB:-jlptquiz}"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-
   app:
     build: .
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
       PORT: 3000
       NODE_ENV: production
       TRUST_PROXY: ${TRUST_PROXY:-true}
       AUTO_MIGRATE: ${AUTO_MIGRATE:-true}
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
-      PGHOST: db
-      PGPORT: 5432
-      PGDATABASE: ${POSTGRES_DB:-jlptquiz}
-      PGUSER: ${POSTGRES_USER:-jlptquiz}
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-      DATABASE_SSL: "false"
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://jlptquiz.in}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      DATABASE_SSL: ${DATABASE_SSL:-true}
       DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-10}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-japanesenx-aman}
-      FIREBASE_SERVICE_ACCOUNT_BASE64: ${FIREBASE_SERVICE_ACCOUNT_BASE64:-}
+      FIREBASE_SERVICE_ACCOUNT_BASE64: ${FIREBASE_SERVICE_ACCOUNT_BASE64:?Set FIREBASE_SERVICE_ACCOUNT_BASE64 in .env}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       DEV_AUTH_BYPASS: "false"
     ports:
       - "${APP_PORT:-3000}:3000"
-
-volumes:
-  postgres_data:
