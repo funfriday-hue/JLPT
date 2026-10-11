@@ -7,15 +7,15 @@ export async function seedWithClient(client) {
     for (const set of seedSets) {
       await client.query(
         `INSERT INTO exam_sets (id, level, order_no, title, description, active, duration_minutes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (id) DO UPDATE SET
-           level = EXCLUDED.level,
-           order_no = EXCLUDED.order_no,
-           title = EXCLUDED.title,
-           description = EXCLUDED.description,
-           active = EXCLUDED.active,
-           duration_minutes = EXCLUDED.duration_minutes,
-           updated_at = NOW()`,
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           level = VALUES(level),
+           order_no = VALUES(order_no),
+           title = VALUES(title),
+           description = VALUES(description),
+           active = VALUES(active),
+           duration_minutes = VALUES(duration_minutes),
+           updated_at = CURRENT_TIMESTAMP(3)`,
         [set.id, set.level, set.order, set.title, set.description, set.active, set.durationMinutes],
       );
     }
@@ -23,20 +23,20 @@ export async function seedWithClient(client) {
       await client.query(
         `INSERT INTO questions
            (id, set_id, level, section, active, order_no, prompt, prompt_en, options, answer_index, explanation, audio_text)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12)
-         ON CONFLICT (id) DO UPDATE SET
-           set_id = EXCLUDED.set_id,
-           level = EXCLUDED.level,
-           section = EXCLUDED.section,
-           active = EXCLUDED.active,
-           order_no = EXCLUDED.order_no,
-           prompt = EXCLUDED.prompt,
-           prompt_en = EXCLUDED.prompt_en,
-           options = EXCLUDED.options,
-           answer_index = EXCLUDED.answer_index,
-           explanation = EXCLUDED.explanation,
-           audio_text = EXCLUDED.audio_text,
-           updated_at = NOW()`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           set_id = VALUES(set_id),
+           level = VALUES(level),
+           section = VALUES(section),
+           active = VALUES(active),
+           order_no = VALUES(order_no),
+           prompt = VALUES(prompt),
+           prompt_en = VALUES(prompt_en),
+           options = VALUES(options),
+           answer_index = VALUES(answer_index),
+           explanation = VALUES(explanation),
+           audio_text = VALUES(audio_text),
+           updated_at = CURRENT_TIMESTAMP(3)`,
         [
           question.id,
           question.setId,

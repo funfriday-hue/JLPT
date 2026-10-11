@@ -17,13 +17,14 @@ function sectionDuration(section) {
 }
 
 function publicQuestion(row, includeEnglish = false) {
+  const options = typeof row.options === "string" ? JSON.parse(row.options) : row.options;
   return {
     id: row.id,
     setId: row.set_id,
     section: row.section,
     prompt: row.prompt,
     ...(includeEnglish ? {promptEn: row.prompt_en} : {}),
-    options: row.options,
+    options,
     audioText: row.audio_text || null,
   };
 }
@@ -93,7 +94,7 @@ export function createApp({
   app.get("/api/health", async (_req, res, next) => {
     try {
       await runQuery("SELECT 1");
-      return res.json({ok: true, service: "jlptquiz-api", database: "postgresql"});
+      return res.json({ok: true, service: "jlptquiz-api", database: "mysql"});
     } catch (error) {
       return next(error);
     }
@@ -102,23 +103,22 @@ export function createApp({
   app.get("/api/sets", async (_req, res, next) => {
     try {
       const result = await runQuery(
-        `SELECT
-           s.id, s.level, s.order_no, s.title, s.description, s.duration_minutes,
-           COALESCE(
-             jsonb_object_agg(counts.section, counts.question_count) FILTER (WHERE counts.section IS NOT NULL),
-             '{}'::jsonb
-           ) AS counts
-         FROM exam_sets s
-         LEFT JOIN (
-           SELECT set_id, section, COUNT(*)::integer AS question_count
-           FROM questions
-           WHERE active = TRUE
-           GROUP BY set_id, section
-         ) counts ON counts.set_id = s.id
-         WHERE s.active = TRUE AND s.level = 'N5'
-         GROUP BY s.id
-         ORDER BY s.order_no`,
+        `SELECT id, level, order_no, title, description, duration_minutes
+         FROM exam_sets
+         WHERE active = TRUE AND level = 'N5'
+         ORDER BY order_no`,
       );
+      const countResult = await runQuery(
+        `SELECT set_id, section, COUNT(*) AS question_count
+         FROM questions
+         WHERE active = TRUE AND level = 'N5'
+         GROUP BY set_id, section`,
+      );
+      const countsBySet = new Map();
+      for (const row of countResult.rows) {
+        if (!countsBySet.has(row.set_id)) countsBySet.set(row.set_id, {});
+        countsBySet.get(row.set_id)[row.section] = Number(row.question_count);
+      }
       const sets = result.rows.map((row) => ({
         id: row.id,
         level: row.level,
@@ -126,7 +126,7 @@ export function createApp({
         title: row.title,
         description: row.description,
         durationMinutes: row.duration_minutes,
-        counts: row.counts,
+        counts: countsBySet.get(row.id) || {},
       }));
       return res.json({sets});
     } catch (error) {
@@ -139,7 +139,7 @@ export function createApp({
       const result = await runQuery(
         `SELECT set_id, section, correct_count, total_count, percent, updated_at
          FROM user_best_scores
-         WHERE firebase_uid = $1
+         WHERE firebase_uid = ?
          ORDER BY updated_at DESC`,
         [req.user.uid],
       );
@@ -159,10 +159,10 @@ export function createApp({
          FROM questions
          WHERE active = TRUE
            AND level = 'N5'
-           AND ($1 = 'random' OR section = $1)
-         ORDER BY CASE WHEN id = $2 THEN 1 ELSE 0 END, RANDOM()
+           AND (? = 'random' OR section = ?)
+         ORDER BY CASE WHEN id = ? THEN 1 ELSE 0 END, RAND()
          LIMIT 1`,
-        [section, excluded],
+        [section, section, excluded],
       );
       if (!result.rowCount) return res.status(404).json({error: "No active questions are available."});
       return res.json({question: publicQuestion(result.rows[0], true)});
@@ -180,8 +180,8 @@ export function createApp({
     try {
       const result = await runTransaction(async (client) => {
         const question = await client.query(
-          `SELECT answer_index, explanation, jsonb_array_length(options) AS option_count
-           FROM questions WHERE id = $1 AND active = TRUE`,
+          `SELECT answer_index, explanation, JSON_LENGTH(options) AS option_count
+           FROM questions WHERE id = ? AND active = TRUE`,
           [questionId],
         );
         if (!question.rowCount) return null;
@@ -190,7 +190,7 @@ export function createApp({
         const correct = choice === data.answer_index;
         await client.query(
           `INSERT INTO practice_completions (firebase_uid, question_id, selected_index, correct)
-           VALUES ($1, $2, $3, $4)`,
+           VALUES (?, ?, ?, ?)`,
           [req.user.uid, questionId, choice, correct],
         );
         return {correct, correctChoice: data.answer_index, explanation: data.explanation};
@@ -210,28 +210,28 @@ export function createApp({
       const payload = await runTransaction(async (client) => {
         const setResult = await client.query(
           `SELECT id, level, order_no, title, description, duration_minutes
-           FROM exam_sets WHERE id = $1 AND active = TRUE`,
+           FROM exam_sets WHERE id = ? AND active = TRUE`,
           [req.params.setId],
         );
         if (!setResult.rowCount) return null;
         const questionResult = await client.query(
           `SELECT id, set_id, section, prompt, options, audio_text
            FROM questions
-           WHERE set_id = $1 AND active = TRUE AND ($2 = 'all' OR section = $2)
+           WHERE set_id = ? AND active = TRUE AND (? = 'all' OR section = ?)
            ORDER BY order_no`,
-          [req.params.setId, section],
+          [req.params.setId, section, section],
         );
         if (!questionResult.rowCount) return {empty: true};
         const attemptId = randomUUID();
         await client.query(
           `INSERT INTO test_attempts (id, firebase_uid, set_id, section, total_count)
-           VALUES ($1, $2, $3, $4, $5)`,
+           VALUES (?, ?, ?, ?, ?)`,
           [attemptId, req.user.uid, req.params.setId, section, questionResult.rowCount],
         );
         for (const [position, question] of questionResult.rows.entries()) {
           await client.query(
             `INSERT INTO test_attempt_questions (attempt_id, question_id, position)
-             VALUES ($1, $2, $3)`,
+             VALUES (?, ?, ?)`,
             [attemptId, question.id, position + 1],
           );
         }
@@ -265,7 +265,7 @@ export function createApp({
         const attemptResult = await client.query(
           `SELECT id, set_id, section, status, correct_count, total_count, percent
            FROM test_attempts
-           WHERE id = $1 AND firebase_uid = $2
+           WHERE id = ? AND firebase_uid = ?
            FOR UPDATE`,
           [req.params.attemptId, req.user.uid],
         );
@@ -274,7 +274,7 @@ export function createApp({
         if (attempt.status === "completed") {
           const bestResult = await client.query(
             `SELECT set_id, section, correct_count, total_count, percent, updated_at
-             FROM user_best_scores WHERE firebase_uid = $1 AND set_id = $2 AND section = $3`,
+             FROM user_best_scores WHERE firebase_uid = ? AND set_id = ? AND section = ?`,
             [req.user.uid, attempt.set_id, attempt.section],
           );
           return {
@@ -283,10 +283,10 @@ export function createApp({
           };
         }
         const questions = await client.query(
-          `SELECT q.id, q.answer_index, jsonb_array_length(q.options) AS option_count
+          `SELECT q.id, q.answer_index, JSON_LENGTH(q.options) AS option_count
            FROM test_attempt_questions aq
            JOIN questions q ON q.id = aq.question_id
-           WHERE aq.attempt_id = $1
+           WHERE aq.attempt_id = ?
            ORDER BY aq.position`,
           [attempt.id],
         );
@@ -300,37 +300,36 @@ export function createApp({
           if (isCorrect) correct += 1;
           await client.query(
             `INSERT INTO test_attempt_answers (attempt_id, question_id, selected_index, correct)
-             VALUES ($1, $2, $3, $4)
-             ON CONFLICT (attempt_id, question_id) DO UPDATE SET
-               selected_index = EXCLUDED.selected_index,
-               correct = EXCLUDED.correct,
-               answered_at = NOW()`,
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               selected_index = VALUES(selected_index),
+               correct = VALUES(correct),
+               answered_at = CURRENT_TIMESTAMP(3)`,
             [attempt.id, question.id, selected, isCorrect],
           );
         }
         const total = questions.rowCount;
         const percent = Math.round((correct / total) * 100);
         await client.query(
-          `UPDATE test_attempts SET status = 'completed', correct_count = $2, percent = $3, completed_at = NOW()
-           WHERE id = $1`,
-          [attempt.id, correct, percent],
+          `UPDATE test_attempts SET status = 'completed', correct_count = ?, percent = ?, completed_at = CURRENT_TIMESTAMP(3)
+           WHERE id = ?`,
+          [correct, percent, attempt.id],
         );
         await client.query(
           `INSERT INTO user_best_scores
              (firebase_uid, set_id, section, correct_count, total_count, percent, attempt_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           ON CONFLICT (firebase_uid, set_id, section) DO UPDATE SET
-             correct_count = EXCLUDED.correct_count,
-             total_count = EXCLUDED.total_count,
-             percent = EXCLUDED.percent,
-             attempt_id = EXCLUDED.attempt_id,
-             updated_at = NOW()
-           WHERE EXCLUDED.percent > user_best_scores.percent`,
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             correct_count = IF(VALUES(percent) > user_best_scores.percent, VALUES(correct_count), user_best_scores.correct_count),
+             total_count = IF(VALUES(percent) > user_best_scores.percent, VALUES(total_count), user_best_scores.total_count),
+             attempt_id = IF(VALUES(percent) > user_best_scores.percent, VALUES(attempt_id), user_best_scores.attempt_id),
+             updated_at = IF(VALUES(percent) > user_best_scores.percent, CURRENT_TIMESTAMP(3), user_best_scores.updated_at),
+             percent = GREATEST(user_best_scores.percent, VALUES(percent))`,
           [req.user.uid, attempt.set_id, attempt.section, correct, total, percent, attempt.id],
         );
         const bestResult = await client.query(
           `SELECT set_id, section, correct_count, total_count, percent, updated_at
-           FROM user_best_scores WHERE firebase_uid = $1 AND set_id = $2 AND section = $3`,
+           FROM user_best_scores WHERE firebase_uid = ? AND set_id = ? AND section = ?`,
           [req.user.uid, attempt.set_id, attempt.section],
         );
         return {

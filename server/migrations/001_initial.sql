@@ -1,101 +1,106 @@
 CREATE TABLE IF NOT EXISTS users (
-  firebase_uid TEXT PRIMARY KEY,
-  email TEXT,
-  display_name TEXT,
+  firebase_uid VARCHAR(128) PRIMARY KEY,
+  email VARCHAR(320),
+  display_name VARCHAR(255),
   photo_url TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  last_login_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  last_login_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS exam_sets (
-  id TEXT PRIMARY KEY,
-  level TEXT NOT NULL CHECK (level IN ('N5', 'N4', 'N3', 'N2', 'N1')),
+  id VARCHAR(64) PRIMARY KEY,
+  level ENUM('N5', 'N4', 'N3', 'N2', 'N1') NOT NULL,
   order_no INTEGER NOT NULL CHECK (order_no > 0),
-  title TEXT NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
+  title VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
   active BOOLEAN NOT NULL DEFAULT TRUE,
   duration_minutes INTEGER NOT NULL DEFAULT 90 CHECK (duration_minutes > 0),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   UNIQUE (level, order_no)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS questions (
-  id TEXT PRIMARY KEY,
-  set_id TEXT NOT NULL REFERENCES exam_sets(id) ON DELETE CASCADE,
-  level TEXT NOT NULL CHECK (level IN ('N5', 'N4', 'N3', 'N2', 'N1')),
-  section TEXT NOT NULL CHECK (section IN ('vocabulary', 'grammar-reading', 'listening')),
+  id VARCHAR(64) PRIMARY KEY,
+  set_id VARCHAR(64) NOT NULL,
+  level ENUM('N5', 'N4', 'N3', 'N2', 'N1') NOT NULL,
+  section ENUM('vocabulary', 'grammar-reading', 'listening') NOT NULL,
   active BOOLEAN NOT NULL DEFAULT TRUE,
   order_no INTEGER NOT NULL CHECK (order_no > 0),
   prompt TEXT NOT NULL,
   prompt_en TEXT NOT NULL,
-  options JSONB NOT NULL CHECK (jsonb_typeof(options) = 'array'),
-  answer_index INTEGER NOT NULL CHECK (answer_index >= 0 AND answer_index < jsonb_array_length(options)),
+  options JSON NOT NULL,
+  answer_index INTEGER NOT NULL CHECK (answer_index >= 0),
   explanation TEXT NOT NULL,
   audio_text TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (set_id, order_no)
-);
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE (set_id, order_no),
+  KEY questions_active_lookup (level, section, active, set_id, order_no),
+  CONSTRAINT questions_set_fk FOREIGN KEY (set_id) REFERENCES exam_sets(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS practice_completions (
-  id BIGSERIAL PRIMARY KEY,
-  firebase_uid TEXT NOT NULL REFERENCES users(firebase_uid) ON DELETE CASCADE,
-  question_id TEXT NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  firebase_uid VARCHAR(128) NOT NULL,
+  question_id VARCHAR(64) NOT NULL,
   selected_index INTEGER NOT NULL CHECK (selected_index >= 0),
   correct BOOLEAN NOT NULL,
-  completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+  completed_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY practice_completions_user_time (firebase_uid, completed_at),
+  CONSTRAINT practice_user_fk FOREIGN KEY (firebase_uid) REFERENCES users(firebase_uid) ON DELETE CASCADE,
+  CONSTRAINT practice_question_fk FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS test_attempts (
-  id UUID PRIMARY KEY,
-  firebase_uid TEXT NOT NULL REFERENCES users(firebase_uid) ON DELETE CASCADE,
-  set_id TEXT NOT NULL REFERENCES exam_sets(id) ON DELETE RESTRICT,
-  section TEXT NOT NULL CHECK (section IN ('all', 'vocabulary', 'grammar-reading', 'listening')),
-  status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'completed')),
+  id CHAR(36) PRIMARY KEY,
+  firebase_uid VARCHAR(128) NOT NULL,
+  set_id VARCHAR(64) NOT NULL,
+  section ENUM('all', 'vocabulary', 'grammar-reading', 'listening') NOT NULL,
+  status ENUM('in_progress', 'completed') NOT NULL DEFAULT 'in_progress',
   correct_count INTEGER CHECK (correct_count >= 0),
   total_count INTEGER NOT NULL CHECK (total_count > 0),
   percent INTEGER CHECK (percent BETWEEN 0 AND 100),
-  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  completed_at TIMESTAMPTZ
-);
+  started_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  completed_at DATETIME(3),
+  KEY test_attempts_user_time (firebase_uid, started_at),
+  CONSTRAINT attempts_user_fk FOREIGN KEY (firebase_uid) REFERENCES users(firebase_uid) ON DELETE CASCADE,
+  CONSTRAINT attempts_set_fk FOREIGN KEY (set_id) REFERENCES exam_sets(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS test_attempt_questions (
-  attempt_id UUID NOT NULL REFERENCES test_attempts(id) ON DELETE CASCADE,
-  question_id TEXT NOT NULL REFERENCES questions(id) ON DELETE RESTRICT,
+  attempt_id CHAR(36) NOT NULL,
+  question_id VARCHAR(64) NOT NULL,
   position INTEGER NOT NULL CHECK (position > 0),
   PRIMARY KEY (attempt_id, question_id),
-  UNIQUE (attempt_id, position)
-);
+  UNIQUE (attempt_id, position),
+  CONSTRAINT attempt_questions_attempt_fk FOREIGN KEY (attempt_id) REFERENCES test_attempts(id) ON DELETE CASCADE,
+  CONSTRAINT attempt_questions_question_fk FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS test_attempt_answers (
-  attempt_id UUID NOT NULL REFERENCES test_attempts(id) ON DELETE CASCADE,
-  question_id TEXT NOT NULL REFERENCES questions(id) ON DELETE RESTRICT,
+  attempt_id CHAR(36) NOT NULL,
+  question_id VARCHAR(64) NOT NULL,
   selected_index INTEGER CHECK (selected_index >= 0),
   correct BOOLEAN NOT NULL,
-  answered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (attempt_id, question_id)
-);
+  answered_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (attempt_id, question_id),
+  CONSTRAINT attempt_answers_attempt_fk FOREIGN KEY (attempt_id) REFERENCES test_attempts(id) ON DELETE CASCADE,
+  CONSTRAINT attempt_answers_question_fk FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS user_best_scores (
-  firebase_uid TEXT NOT NULL REFERENCES users(firebase_uid) ON DELETE CASCADE,
-  set_id TEXT NOT NULL REFERENCES exam_sets(id) ON DELETE CASCADE,
-  section TEXT NOT NULL CHECK (section IN ('all', 'vocabulary', 'grammar-reading', 'listening')),
+  firebase_uid VARCHAR(128) NOT NULL,
+  set_id VARCHAR(64) NOT NULL,
+  section ENUM('all', 'vocabulary', 'grammar-reading', 'listening') NOT NULL,
   correct_count INTEGER NOT NULL CHECK (correct_count >= 0),
   total_count INTEGER NOT NULL CHECK (total_count > 0),
   percent INTEGER NOT NULL CHECK (percent BETWEEN 0 AND 100),
-  attempt_id UUID NOT NULL REFERENCES test_attempts(id) ON DELETE RESTRICT,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (firebase_uid, set_id, section)
-);
-
-CREATE INDEX IF NOT EXISTS questions_active_lookup
-  ON questions (level, section, set_id, order_no)
-  WHERE active = TRUE;
-
-CREATE INDEX IF NOT EXISTS practice_completions_user_time
-  ON practice_completions (firebase_uid, completed_at DESC);
-
-CREATE INDEX IF NOT EXISTS test_attempts_user_time
-  ON test_attempts (firebase_uid, started_at DESC);
+  attempt_id CHAR(36) NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (firebase_uid, set_id, section),
+  CONSTRAINT scores_user_fk FOREIGN KEY (firebase_uid) REFERENCES users(firebase_uid) ON DELETE CASCADE,
+  CONSTRAINT scores_set_fk FOREIGN KEY (set_id) REFERENCES exam_sets(id) ON DELETE CASCADE,
+  CONSTRAINT scores_attempt_fk FOREIGN KEY (attempt_id) REFERENCES test_attempts(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

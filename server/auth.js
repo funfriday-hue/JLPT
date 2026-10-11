@@ -21,13 +21,13 @@ if (!getApps().length) {
 async function persistUser(user) {
   await query(
     `INSERT INTO users (firebase_uid, email, display_name, photo_url, last_login_at)
-     VALUES ($1, $2, $3, $4, NOW())
-     ON CONFLICT (firebase_uid) DO UPDATE SET
-       email = EXCLUDED.email,
-       display_name = EXCLUDED.display_name,
-       photo_url = EXCLUDED.photo_url,
-       last_login_at = NOW(),
-       updated_at = NOW()`,
+     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP(3))
+     ON DUPLICATE KEY UPDATE
+       email = VALUES(email),
+       display_name = VALUES(display_name),
+       photo_url = VALUES(photo_url),
+       last_login_at = CURRENT_TIMESTAMP(3),
+       updated_at = CURRENT_TIMESTAMP(3)`,
     [user.uid, user.email || null, user.name || null, user.picture || null],
   );
 }

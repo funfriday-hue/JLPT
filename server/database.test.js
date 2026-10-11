@@ -1,41 +1,38 @@
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
 import test from "node:test";
-import {DataType, newDb} from "pg-mem";
+import mysql from "mysql2/promise";
 import {seedQuestions, seedSets} from "./data.js";
 import {seedWithClient} from "./seed.js";
 
-test("migration creates a seedable PostgreSQL content database", async () => {
-  const memory = newDb();
-  memory.public.registerFunction({
-    name: "jsonb_typeof",
-    args: [DataType.jsonb],
-    returns: DataType.text,
-    implementation: (value) => Array.isArray(value) ? "array" : typeof value,
+const databaseUrl = process.env.TEST_DATABASE_URL;
+
+test("schema creates a seedable MySQL content database", {skip: !databaseUrl}, async () => {
+  const url = new URL(databaseUrl);
+  const connection = await mysql.createConnection({
+    host: url.hostname,
+    port: Number(url.port || 3306),
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database: decodeURIComponent(url.pathname.replace(/^\//, "")),
+    multipleStatements: true,
   });
-  memory.public.registerFunction({
-    name: "jsonb_array_length",
-    args: [DataType.jsonb],
-    returns: DataType.integer,
-    implementation: (value) => value.length,
-  });
-  const adapter = memory.adapters.createPg();
-  const pool = new adapter.Pool();
-  const sql = await readFile(new URL("./migrations/001_initial.sql", import.meta.url), "utf8");
+  try {
+    const sql = await readFile(new URL("./migrations/001_initial.sql", import.meta.url), "utf8");
+    await connection.query(sql);
+    const client = {query: (text, values = []) => connection.execute(text, values)};
+    await seedWithClient(client);
 
-  await pool.query(sql);
-  await seedWithClient(pool);
+    const [[sets]] = await connection.query("SELECT COUNT(*) AS count FROM exam_sets");
+    const [[questions]] = await connection.query("SELECT COUNT(*) AS count FROM questions");
+    assert.equal(sets.count, seedSets.length);
+    assert.equal(questions.count, seedQuestions.length);
 
-  const sets = await pool.query("SELECT COUNT(*)::integer AS count FROM exam_sets");
-  const questions = await pool.query("SELECT COUNT(*)::integer AS count FROM questions");
-  assert.equal(sets.rows[0].count, seedSets.length);
-  assert.equal(questions.rows[0].count, seedQuestions.length);
-
-  const answer = await pool.query(
-    "SELECT options, answer_index FROM questions WHERE id = $1",
-    [seedQuestions[0].id],
-  );
-  assert.deepEqual(answer.rows[0].options, seedQuestions[0].options);
-  assert.equal(answer.rows[0].answer_index, seedQuestions[0].answer);
-  await pool.end();
+    const [[answer]] = await connection.execute("SELECT options, answer_index FROM questions WHERE id = ?", [seedQuestions[0].id]);
+    const options = typeof answer.options === "string" ? JSON.parse(answer.options) : answer.options;
+    assert.deepEqual(options, seedQuestions[0].options);
+    assert.equal(answer.answer_index, seedQuestions[0].answer);
+  } finally {
+    await connection.end();
+  }
 });

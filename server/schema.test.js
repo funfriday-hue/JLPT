@@ -16,4 +16,8 @@ test("SQL schema stores content and user completion history", async () => {
   ]) {
     assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`));
   }
+  assert.match(sql, /ENGINE=InnoDB/);
+  assert.match(sql, /options JSON NOT NULL/);
+  assert.match(sql, /AUTO_INCREMENT/);
+  assert.doesNotMatch(sql, /JSONB|TIMESTAMPTZ|BIGSERIAL|\bUUID\b/);
 });

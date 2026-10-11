@@ -1,14 +1,14 @@
 # JLPT Quiz
 
-[jlptquiz.in](https://jlptquiz.in) is a conventional Node.js and PostgreSQL web application for JLPT practice and timed mock tests. N5 is the first available level.
+[jlptquiz.in](https://jlptquiz.in) is a conventional Node.js and MySQL web application for JLPT practice and timed mock tests. N5 is the first available level.
 
 ## Stack
 
 - Static multi-page frontend in `public/`
 - Express API and web server in `server/`
-- PostgreSQL for test papers, questions, practice completions, test attempts, answers, and best scores
+- MySQL 8.0+ for test papers, questions, practice completions, test attempts, answers, and best scores
 - Firebase Authentication for Google-only login
-- Docker Compose for a one-command application deployment using managed PostgreSQL
+- Docker Compose for a one-command application deployment using MySQL on the Linux host
 
 Firebase stays on the no-cost Spark plan because the application no longer uses Firebase Cloud Functions or Firestore.
 
@@ -18,11 +18,11 @@ Firebase stays on the no-cost Spark plan because the application no longer uses 
 public/                    Frontend, SEO pages, and browser JavaScript
 server/app.js              Express routes and static page serving
 server/auth.js             Firebase ID-token verification
-server/migrations/         PostgreSQL schema migrations
+server/migrations/         MySQL schema migrations
 server/data.js             Starter N5 sets and questions
 server/seed.js             Idempotent starter-data import
 Dockerfile                 Production Node container
-docker-compose.yml         Node application connected to external PostgreSQL
+docker-compose.yml         Node application connected to host MySQL
 .env.example               Required environment variables
 firebase.json              Google-only Firebase Auth configuration
 ```
@@ -42,7 +42,7 @@ Answers remain server-side. Mock-test responses never include English translatio
 
 ## Production deployment with Docker
 
-Requirements: Docker Engine, Docker Compose, HTTPS configured for `jlptquiz.in`, an external PostgreSQL database, and the existing Firebase project.
+Requirements: Docker Engine, Docker Compose, HTTPS configured for `jlptquiz.in`, MySQL 8.0+ on the same Linux server, and the existing Firebase project.
 
 1. Clone the repository and enter it.
 2. Create the runtime environment file:
@@ -51,27 +51,38 @@ Requirements: Docker Engine, Docker Compose, HTTPS configured for `jlptquiz.in`,
    cp .env.example .env
    ```
 
-3. In `.env`, set `DATABASE_URL` to the connection string supplied by your managed PostgreSQL provider. Keep `DATABASE_SSL=true` unless the provider explicitly says otherwise. `PUBLIC_BASE_URL` defaults to `https://jlptquiz.in`.
-4. Provide Firebase Admin credentials using one of these approaches:
+3. Create a dedicated MySQL database and application user:
+
+   ```sql
+   CREATE DATABASE IF NOT EXISTS jlptquiz CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   CREATE USER IF NOT EXISTS 'jlptquiz_app'@'localhost' IDENTIFIED BY 'replace-with-a-long-random-password';
+   CREATE USER IF NOT EXISTS 'jlptquiz_app'@'127.0.0.1' IDENTIFIED BY 'replace-with-a-long-random-password';
+   GRANT ALL PRIVILEGES ON jlptquiz.* TO 'jlptquiz_app'@'localhost';
+   GRANT ALL PRIVILEGES ON jlptquiz.* TO 'jlptquiz_app'@'127.0.0.1';
+   FLUSH PRIVILEGES;
+   ```
+
+4. In `.env`, set `DATABASE_URL=mysql://jlptquiz_app:URL_ENCODED_PASSWORD@127.0.0.1:3306/jlptquiz`. Local MySQL normally uses `DATABASE_SSL=false`. `PUBLIC_BASE_URL` defaults to `https://jlptquiz.in`.
+5. Provide Firebase Admin credentials using one of these approaches:
 
    - On Google Cloud, attach a service account and leave `FIREBASE_SERVICE_ACCOUNT_BASE64` empty so Application Default Credentials are used.
    - Elsewhere, base64-encode a Firebase service-account JSON file and place the one-line value in `FIREBASE_SERVICE_ACCOUNT_BASE64`. Never commit the key or `.env` file.
 
-5. Ensure the database provider allows connections from the server, then start the application:
+6. Start the application:
 
    ```bash
    docker compose up -d --build
    ```
 
-6. Confirm the API is healthy at `https://jlptquiz.in/api/health`. Canonical URLs, Open Graph URLs, `robots.txt`, and the sitemap use `PUBLIC_BASE_URL` automatically.
-7. The checked-in Firebase Authentication configuration authorizes `jlptquiz.in` and `www.jlptquiz.in`. If you use another hostname, add it without `https://` or a port under Authentication → Settings → Authorized domains.
-8. Put Nginx, Caddy, Traefik, or your hosting provider’s HTTPS proxy in front of port 3000.
+7. Confirm the API is healthy at `http://127.0.0.1:3200/api/health`. Canonical URLs, Open Graph URLs, `robots.txt`, and the sitemap use `PUBLIC_BASE_URL` automatically.
+8. The checked-in Firebase Authentication configuration authorizes `jlptquiz.in` and `www.jlptquiz.in`. If you use another hostname, add it without `https://` or a port under Authentication → Settings → Authorized domains.
+9. Put Nginx, Caddy, Traefik, or your hosting provider’s HTTPS proxy in front of `127.0.0.1:3200`.
 
-The container automatically applies versioned SQL migrations and idempotently seeds three starter N5 papers in the external database at startup. The database user must be allowed to create tables and indexes and to read and write application data. Set `AUTO_MIGRATE=false` if your deployment pipeline runs migrations separately.
+Docker Compose uses host networking so the container can reach MySQL at `127.0.0.1:3306`. The application itself binds only to `127.0.0.1:3200`. It automatically applies versioned MySQL migrations and idempotently seeds three starter N5 papers at startup. Set `AUTO_MIGRATE=false` if your deployment pipeline runs migrations separately.
 
 ## Development without Docker
 
-Start a PostgreSQL database and export a connection URL, then run:
+Start MySQL 8.0+, create the database and user shown above, and export a MySQL connection URL before running:
 
 ```bash
 cp .env.example .env
@@ -80,7 +91,7 @@ npm run db:setup --prefix server
 npm run dev --prefix server
 ```
 
-Open `http://localhost:3000`. `localhost` is already configured as an authorized Firebase domain.
+Open `http://localhost:3200`. `localhost` is already configured as an authorized Firebase domain.
 
 For local API/UI verification without opening a Google login popup, set `NODE_ENV=development` and `DEV_AUTH_BYPASS=true`. This bypass is ignored when `NODE_ENV=production`.
 

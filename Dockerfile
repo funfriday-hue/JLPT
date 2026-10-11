@@ -10,5 +10,5 @@ COPY --from=dependencies --chown=node:node /app/server/node_modules ./server/nod
 COPY --chown=node:node server ./server
 COPY --chown=node:node public ./public
 USER node
-EXPOSE 3000
+EXPOSE 3200
 CMD ["node", "server/index.js"]
