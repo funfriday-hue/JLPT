@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /practice/session
+Disallow: /tests/session
+
+Sitemap: https://jlptquiz.in/sitemap.xml

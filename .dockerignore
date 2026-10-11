@@ -1,0 +1,10 @@
+.git
+.gitignore
+.env
+.firebase
+.openai
+dist
+server/node_modules
+secrets
+firebase-debug*.log
+*.md

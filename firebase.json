@@ -1,0 +1,19 @@
+{
+  "auth": {
+    "authorizedDomains": [
+      "localhost",
+      "jlptquiz.in",
+      "www.jlptquiz.in",
+      "japanesenx-aman.firebaseapp.com",
+      "japanesenx-aman.web.app"
+    ],
+    "providers": {
+      "anonymous": false,
+      "emailPassword": false,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "JLPT Quiz",
+        "supportEmail": "amanshri93@gmail.com"
+      }
+    }
+  }
+}
