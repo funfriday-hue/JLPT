@@ -5,11 +5,18 @@
   <title>Timed JLPT N5 Mock Test | JLPT Quiz</title><meta name="description" content="Take a timed JLPT N5 mock test covering vocabulary, grammar, reading and listening.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="canonical" href="https://jlptquiz.in/tests/session">
-  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Serif+JP:wght@500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/assets/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Serif+JP:wght@500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>
   <header class="topbar"><div class="shell nav"><a class="brand" href="/" aria-label="JLPT Quiz home"><span class="mark">JQ</span><span>jlptquiz.in</span></a><nav class="links" aria-label="Main navigation"><a class="nav-link" href="/practice">Practice</a><a class="nav-link active" href="/tests">Test</a><a class="nav-link" data-login-link href="/login">Login</a><a class="nav-link" href="/about">About us</a></nav></div></header>
-  <main class="question-page"><div class="question-shell"><div class="question-toolbar"><a class="back-link" href="/tests">← Back to test papers</a><div class="timer" aria-live="polite"><span>Time remaining</span><strong id="timer">90:00</strong></div></div><article class="question-panel" id="test-panel"><div class="loading-card">Preparing your mock test…</div></article></div></main>
+  <main class="question-page"><div class="mock-test-layout">
+    <aside class="question-navigator" id="question-navigator" aria-labelledby="question-navigator-title" hidden>
+      <div class="navigator-head"><div><span class="navigator-kicker">Mock test</span><h2 id="question-navigator-title">Questions</h2></div><strong id="navigator-count" aria-live="polite">0 / 0</strong></div>
+      <div class="navigator-legend" aria-label="Question status legend"><span><i class="legend-dot attempted"></i>Attempted</span><span><i class="legend-dot pending"></i>Pending</span></div>
+      <div class="question-jump-grid" id="question-jump-grid" role="group" aria-label="Jump to a question"></div>
+    </aside>
+    <div class="question-shell"><div class="question-toolbar"><a class="back-link" href="/tests">← Back to test papers</a><div class="timer" aria-live="polite"><span>Time remaining</span><strong id="timer">90:00</strong></div></div><article class="question-panel" id="test-panel"><div class="loading-card">Preparing your mock test…</div></article></div>
+  </div></main>
   <footer><div class="shell footer-in"><span>© 2026 JLPT Quiz</span><span>Timed JLPT N5 exam practice</span></div></footer>
   <script type="module" src="/assets/test-session.js"></script>
 </body>

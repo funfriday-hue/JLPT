@@ -163,6 +163,7 @@ test("practice and MySQL-backed mock-test flows persist completion data", async 
   const practice = await request(app).get("/api/practice/random?section=vocabulary").expect(200);
   assert.ok(practice.body.question.promptEn);
   assert.equal("answer" in practice.body.question, false);
+  assert.equal(practice.body.question.audioUrl, null);
   const practiceSource = seedQuestions.find((question) => question.id === practice.body.question.id);
   await request(app)
     .post("/api/practice/check")
@@ -180,6 +181,9 @@ test("practice and MySQL-backed mock-test flows persist completion data", async 
   for (const question of started.body.questions) {
     assert.equal("promptEn" in question, false);
     assert.equal("answer" in question, false);
+    if (question.section === "listening") {
+      assert.equal(question.audioUrl, `/audio/questions/${encodeURIComponent(question.id)}.mp3`);
+    }
   }
   const answers = Object.fromEntries(started.body.questions.map((question) => [
     question.id,

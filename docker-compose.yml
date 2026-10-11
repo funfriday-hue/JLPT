@@ -17,3 +17,27 @@ services:
       FIREBASE_SERVICE_ACCOUNT_BASE64: ${FIREBASE_SERVICE_ACCOUNT_BASE64:?Set FIREBASE_SERVICE_ACCOUNT_BASE64 in .env}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       DEV_AUTH_BYPASS: "false"
+    volumes:
+      - chirp_audio:/app/public/audio:ro
+
+  audio-generator:
+    profiles: ["tools"]
+    build: .
+    network_mode: host
+    user: "0:0"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      DATABASE_SSL: ${DATABASE_SSL:-false}
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-10}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/google-tts.json
+      CHIRP_AUDIO_DIRECTORY: /app/public/audio/questions
+      CHIRP_VOICE: ${CHIRP_VOICE:-ja-JP-Chirp3-HD-Aoede}
+      CHIRP_SPEAKING_RATE: ${CHIRP_SPEAKING_RATE:-0.95}
+      CHIRP_FORCE: ${CHIRP_FORCE:-false}
+    volumes:
+      - ${GOOGLE_TTS_CREDENTIALS_PATH:-/root/secrets/jlptquiz-tts.json}:/run/secrets/google-tts.json:ro
+      - chirp_audio:/app/public/audio
+    command: ["npm", "--prefix", "server", "run", "audio:generate"]
+
+volumes:
+  chirp_audio:

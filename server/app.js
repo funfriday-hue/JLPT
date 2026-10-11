@@ -18,6 +18,9 @@ function sectionDuration(section) {
 
 function publicQuestion(row, includeEnglish = false) {
   const options = typeof row.options === "string" ? JSON.parse(row.options) : row.options;
+  const audioUrl = row.section === "listening" && row.audio_text
+    ? `/audio/questions/${encodeURIComponent(row.id)}.mp3`
+    : null;
   return {
     id: row.id,
     setId: row.set_id,
@@ -26,6 +29,7 @@ function publicQuestion(row, includeEnglish = false) {
     ...(includeEnglish ? {promptEn: row.prompt_en} : {}),
     options,
     audioText: row.audio_text || null,
+    audioUrl,
   };
 }
 

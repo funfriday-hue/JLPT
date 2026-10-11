@@ -2,6 +2,7 @@ import "./common.js";
 import {api} from "./api.js";
 import {requireUser} from "./firebase.js";
 import {escapeHtml, sectionLabel, toast} from "./common.js";
+import {playJapaneseAudio, stopJapaneseAudio} from "./speech.js";
 
 const params = new URLSearchParams(window.location.search);
 const section = ["vocabulary", "grammar-reading", "listening", "random"].includes(params.get("section")) ? params.get("section") : "random";
@@ -10,6 +11,7 @@ let question = null;
 let answered = false;
 
 async function loadQuestion() {
+  stopJapaneseAudio();
   answered = false;
   panel.innerHTML = '<div class="loading-card">Loading a random N5 question…</div>';
   try {
@@ -44,12 +46,10 @@ function render() {
     event.currentTarget.textContent = hidden ? "Reveal in English" : "Hide English";
   });
   document.querySelector("#next").addEventListener("click", loadQuestion);
-  document.querySelector("#play-audio")?.addEventListener("click", () => {
-    if (!("speechSynthesis" in window)) return toast("Audio playback is not supported in this browser.");
-    speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(question.audioText || question.prompt.replace(/（.*?）/g, ""));
-    utterance.lang = "ja-JP";
-    speechSynthesis.speak(utterance);
+  document.querySelector("#play-audio")?.addEventListener("click", async () => {
+    if (!await playJapaneseAudio(question.audioUrl, question.audioText || question.prompt)) {
+      toast("Audio playback is not supported in this browser.");
+    }
   });
   for (const option of document.querySelectorAll("[data-choice]")) {
     option.addEventListener("click", () => submitAnswer(Number(option.dataset.choice)));

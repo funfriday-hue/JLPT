@@ -1,5 +1,47 @@
 import {observeAuth} from "./firebase.js";
 
+const japaneseRunPattern = /[\u3000-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff01-\uff65]+/gu;
+const typographyExclusions = "script, style, textarea, option, .jp-text";
+
+function styleJapaneseTextNode(node) {
+  const parent = node.parentElement;
+  if (!parent || parent.closest(typographyExclusions) || !japaneseRunPattern.test(node.data)) return;
+  japaneseRunPattern.lastIndex = 0;
+  const fragment = document.createDocumentFragment();
+  let cursor = 0;
+  for (const match of node.data.matchAll(japaneseRunPattern)) {
+    if (match.index > cursor) fragment.append(node.data.slice(cursor, match.index));
+    const japanese = document.createElement("span");
+    japanese.className = "jp-text";
+    japanese.lang = "ja";
+    japanese.textContent = match[0];
+    fragment.append(japanese);
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < node.data.length) fragment.append(node.data.slice(cursor));
+  node.replaceWith(fragment);
+}
+
+export function applyJapaneseTypography(root = document.body) {
+  if (!root) return;
+  if (root.nodeType === Node.TEXT_NODE) {
+    styleJapaneseTextNode(root);
+    return;
+  }
+  if (root.nodeType !== Node.ELEMENT_NODE || root.matches(typographyExclusions)) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(styleJapaneseTextNode);
+}
+
+applyJapaneseTypography();
+new MutationObserver((records) => {
+  for (const record of records) {
+    for (const node of record.addedNodes) applyJapaneseTypography(node);
+  }
+}).observe(document.body, {childList: true, subtree: true});
+
 const loginLinks = document.querySelectorAll('[data-login-link]');
 observeAuth((user) => {
   for (const link of loginLinks) {
