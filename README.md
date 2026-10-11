@@ -24,6 +24,7 @@ server/seed.js             Idempotent starter-data import
 Dockerfile                 Production Node container
 docker-compose.yml         Node application connected to host MySQL
 deploy.sh                  Pull and deploy the current Git branch with Docker Compose
+script/backup/             Daily MySQL and Chirp-audio backup job
 .env.example               Required environment variables
 firebase.json              Google-only Firebase Auth configuration
 ```
@@ -82,6 +83,14 @@ Requirements: Docker Engine, Docker Compose, HTTPS configured for `jlptquiz.in`,
 Docker Compose uses host networking so the container can reach MySQL at `127.0.0.1:3306`. The application itself binds only to `127.0.0.1:3200`. It automatically applies versioned MySQL migrations and idempotently seeds three starter N5 papers at startup. Set `AUTO_MIGRATE=false` if your deployment pipeline runs migrations separately.
 
 For later releases, run `./deploy.sh` again from the repository. It performs a fast-forward-only pull of the currently checked-out branch, validates the resolved Compose configuration, rebuilds the application image, starts the service, removes orphaned containers, and prints the resulting container status. It does not run `docker compose down`, so unchanged services are not stopped unnecessarily.
+
+## Backups
+
+The deployment installs a separate daily JLPT Quiz backup job. It archives the
+`jlptquiz` MySQL database and the persistent `jlpt_chirp_audio` Docker volume,
+then uploads one replaceable bundle through rclone. See
+[`script/backup/README.md`](script/backup/README.md) for credential setup,
+testing, restore instructions, and environment overrides.
 
 ## Development without Docker
 

@@ -1,0 +1,7 @@
+# Installed as /etc/jlptquiz/mysql-backup.cnf on the server.
+# Enter the raw MySQL password here, not its URL-encoded DATABASE_URL form.
+[client]
+user=jlptquiz_app
+password=
+host=127.0.0.1
+port=3306

@@ -1,0 +1,2 @@
+# Daily JLPT Quiz database and Chirp-audio backup at 12:30 AM server time.
+30 0 * * * root /usr/local/sbin/jlptquiz-backup >> /var/log/jlptquiz-backup.log 2>&1
