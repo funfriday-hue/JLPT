@@ -51,7 +51,7 @@ function setSecurityHeaders(_req, res, next) {
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
     "Content-Security-Policy": [
       "default-src 'self'",
-      "script-src 'self' https://www.gstatic.com",
+      "script-src 'self' https://www.gstatic.com https://apis.google.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https:",

@@ -151,6 +151,10 @@ test("practice and MySQL-backed mock-test flows persist completion data", async 
 
   const health = await request(app).get("/api/health").expect(200);
   assert.equal(health.body.database, "mysql");
+  assert.match(
+    health.headers["content-security-policy"],
+    /script-src 'self' https:\/\/www\.gstatic\.com https:\/\/apis\.google\.com/,
+  );
 
   const sets = await request(app).get("/api/sets").expect(200);
   assert.equal(sets.body.sets.length, seedSets.length);
